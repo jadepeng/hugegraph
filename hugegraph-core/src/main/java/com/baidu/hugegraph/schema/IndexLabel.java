@@ -112,9 +112,6 @@ public class IndexLabel extends SchemaElement {
     }
 
     public Id indexField() {
-        E.checkState(this.indexType.isRange() || this.indexType.isSearch(),
-                     "Can't call indexField() for %s index label",
-                     this.indexType.string());
         E.checkState(this.indexFields.size() == 1,
                      "There should be only one field in %s index label, " +
                      "but got: %s", this.indexType.string(), this.indexFields);
@@ -131,6 +128,26 @@ public class IndexLabel extends SchemaElement {
                this.baseType == other.baseType &&
                Objects.equal(this.graph.mapPkId2Name(this.indexFields),
                              other.graph.mapPkId2Name(other.indexFields));
+    }
+
+    public Object validValue(Object value) {
+        if (!(value instanceof Number)) {
+            return value;
+        }
+
+        Number number = (Number) value;
+        switch (this.indexType()) {
+            case RANGE_INT:
+                return number.intValue();
+            case RANGE_LONG:
+                return number.longValue();
+            case RANGE_FLOAT:
+                return number.floatValue();
+            case RANGE_DOUBLE:
+                return number.doubleValue();
+            default:
+                return value;
+        }
     }
 
     // ABS of System index id must be below SchemaElement.MAX_PRIMITIVE_SYS_ID

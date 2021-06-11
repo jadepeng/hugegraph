@@ -71,6 +71,7 @@ import com.baidu.hugegraph.testutil.Assert;
 import com.baidu.hugegraph.testutil.FakeObjects.FakeVertex;
 import com.baidu.hugegraph.testutil.Utils;
 import com.baidu.hugegraph.testutil.Whitebox;
+import com.baidu.hugegraph.traversal.optimize.ConditionP;
 import com.baidu.hugegraph.traversal.optimize.Text;
 import com.baidu.hugegraph.traversal.optimize.TraversalUtil;
 import com.baidu.hugegraph.type.HugeType;
@@ -406,6 +407,139 @@ public class VertexCoreTest extends BaseCoreTest {
             graph.addVertex(T.label, "review", "id", 3,
                             "comment", new int[]{1, 2});
         });
+    }
+
+    @Test
+    public void testRemoveLeftRangeIndex(){
+        HugeGraph graph = graph();
+        SchemaManager schema = graph.schema();
+
+        schema.propertyKey("updateTime").asLong().create();
+
+        schema.vertexLabel("soft").properties("name", "updateTime")
+              .primaryKeys("name").create();
+
+        schema.indexLabel("softByUpdateTime").onV("soft").range()
+              .by("updateTime").create();
+
+        final long testDataCount = 10L;
+
+        for (int i = 1; i <= testDataCount; i++) {
+            graph.addVertex(T.label, "soft", "name", "soft" + i,
+                            "updateTime", i);
+        }
+        graph.tx().commit();
+
+        long count = graph.traversal().V()
+                          .has("soft", "updateTime",
+                               ConditionP.gt(0))
+                          .limit(-1)
+                          .count()
+                          .next();
+        Assert.assertEquals(testDataCount, count);
+
+        for (int i = 1; i <= testDataCount; i++) {
+            graph.addVertex(T.label, "soft", "name", "soft" + i,
+                            "updateTime", 2 * i);
+        }
+        graph.tx().commit();
+
+        count = graph.traversal().V()
+                     .has("soft", "updateTime",
+                          ConditionP.gt(0))
+                     .limit(-1)
+                     .count()
+                     .next();
+        Assert.assertEquals(testDataCount, count);
+
+        schema.propertyKey("score").asInt().create();
+        schema.vertexLabel("developer").properties("name", "age", "score")
+              .primaryKeys("name").create();
+
+        schema.indexLabel("developerByAge").onV("developer").range()
+              .by("age").create();
+        schema.indexLabel("developerByScore").onV("developer").range()
+              .by("score").create();
+
+        for (int i = 1; i <= testDataCount; i++) {
+            graph.addVertex(T.label, "developer", "name", "developer" + i,
+                            "age", i,
+                            "score", i);
+        }
+        graph.tx().commit();
+
+        count = graph.traversal().V()
+                     .hasLabel("developer")
+                     .has("age", ConditionP.gt(0))
+                     .has("score", ConditionP.gt(0))
+                     .limit(-1)
+                     .count()
+                     .next();
+        Assert.assertEquals(testDataCount, count);
+
+        for (int i = 1; i <= testDataCount; i++) {
+            graph.addVertex(T.label, "developer", "name", "developer" + i,
+                            "age", i * 2,
+                            "score", i * 2);
+        }
+        graph.tx().commit();
+
+        count = graph.traversal().V()
+                     .hasLabel("developer")
+                     .has("age", ConditionP.gt(0))
+                     .has("score", ConditionP.gt(0))
+                     .limit(-1)
+                     .count()
+                     .next();
+
+        Assert.assertEquals(testDataCount, count);
+    }
+
+    @Test
+    public void testLeftUnionIndex(){
+        HugeGraph graph = graph();
+        SchemaManager schema = graph.schema();
+
+        schema.propertyKey("updateTime").asLong().create();
+        schema.propertyKey("country").asText().create();
+
+        schema.vertexLabel("soft").properties("name", "country", "updateTime")
+              .primaryKeys("name").create();
+
+        schema.indexLabel("softByCountryAndUpdateTime").onV("soft").secondary()
+              .by("country", "updateTime").create();
+
+        final long testDataCount = 2L;
+
+        for (int i = 1; i <= testDataCount; i++) {
+            graph.addVertex(T.label, "soft", "name", "soft" + i,
+                            "country", "china", "updateTime", i);
+        }
+        graph.tx().commit();
+
+        long count = graph.traversal().V()
+                          .hasLabel("soft")
+                          .has("updateTime", 2L)
+                          .has("country", "china")
+                          .limit(-1)
+                          .count()
+                          .next();
+        Assert.assertEquals(1, count);
+
+        for (int i = 1; i <= testDataCount; i++) {
+            graph.addVertex(T.label, "soft", "name", "soft" + i,
+                            "country", "china", "updateTime", i * 2);
+        }
+        graph.tx().commit();
+
+        count = graph.traversal().V()
+                     .hasLabel("soft")
+                     .has("updateTime", 2L)
+                     .has("country", "china")
+                     .limit(-1)
+                     .count()
+                     .next();
+        Assert.assertEquals(1L, count);
     }
 
     @Test
