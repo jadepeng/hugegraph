@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - collection-index
       - /^release-.*$/
       - /^test-.*$/
   pull_request:
